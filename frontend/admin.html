@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel | Refinery Control</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; transition: all 0.2s ease; }
+    :root {
+      --bg-gradient-start: #e0eafc;
+      --bg-gradient-end: #cfdef3;
+      --glass-bg: rgba(255, 255, 255, 0.35);
+      --glass-border: rgba(255, 255, 255, 0.5);
+      --card-bg: rgba(255, 255, 255, 0.4);
+      --text-primary: #1e293b;
+      --text-muted: #64748b;
+      --primary: #3b82f6;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+    body.dark {
+      --bg-gradient-start: #0f172a;
+      --bg-gradient-end: #020617;
+      --glass-bg: rgba(15, 25, 45, 0.55);
+      --glass-border: rgba(255, 255, 255, 0.12);
+      --card-bg: rgba(18, 25, 45, 0.65);
+      --text-primary: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .glass-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 32px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 650px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+    }
+    h2 { text-align: center; margin-bottom: 1.8rem; color: var(--primary); }
+    label { display: block; margin-top: 1rem; margin-bottom: 0.3rem; color: var(--text-muted); font-weight: 500; }
+    input, select {
+      width: 100%;
+      padding: 0.8rem;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+    button {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, var(--primary), #2563eb);
+      border: none;
+      border-radius: 20px;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 1.5rem;
+      transition: transform 0.2s;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
+    button.secondary { background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); }
+    .error { color: var(--danger); margin-top: 0.5rem; font-size: 0.85rem; }
+    .success { color: var(--success); margin-top: 0.5rem; }
+    .hidden { display: none; }
+    table {
+      width: 100%;
+      margin-top: 1.5rem;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 0.7rem;
+      border-bottom: 1px solid var(--glass-border);
+      text-align: left;
+    }
+    th { color: var(--text-muted); font-weight: 500; }
+    .theme-toggle {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 40px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      width: auto;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="toggleTheme()">🌙 Dark Mode</button>
+  <div class="glass-panel">
+    <div id="login-box">
+      <h2>🔐 Admin Portal</h2>
+      <input id="login-username" placeholder="Username">
+      <input type="password" id="login-password" placeholder="Password">
+      <button onclick="adminLogin()">Login</button>
+      <p id="login-error" class="error"></p>
+    </div>
+
+    <div id="main-box" class="hidden">
+      <h2>👥 User Management</h2>
+      <label>Username *</label><input id="new-username">
+      <label>Password * (min 6 chars)</label><input type="password" id="new-password">
+      <label>Full Name</label><input id="new-fullname">
+      <label>Role</label>
+      <select id="new-role">
+        <option value="operator">Operator</option>
+        <option value="engineer">Engineer</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button onclick="registerUser()">Create User</button>
+      <p id="register-msg"></p>
+      <button class="secondary" onclick="loadUsers()">⟳ Refresh User List</button>
+      <table id="users-table" class="hidden">
+        <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button class="secondary" onclick="logout()" style="margin-top:1rem;">Logout</button>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:8000/api';
+
+    // Helper fetch with credentials (cookies)
+    async function apiFetch(path, options = {}) {
+      const res = await fetch(API + path, {
+        ...options,
+        credentials: 'include',  // Always send cookies
+        headers: { 'Content-Type': 'application/json', ...options.headers }
+      });
+      if (res.status === 401) throw new Error('Unauthorized');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    // Theme
+    function toggleTheme() {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('adminTheme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    }
+    if (localStorage.getItem('adminTheme') === 'dark') document.body.classList.add('dark');
+
+    // Check if already authenticated by trying to fetch users
+    async function checkAuth() {
+      try {
+        await apiFetch('/auth/users');
+        document.getElementById('login-box').classList.add('hidden');
+        document.getElementById('main-box').classList.remove('hidden');
+        loadUsers();
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function adminLogin() {
+      const u = document.getElementById('login-username').value;
+      const p = document.getElementById('login-password').value;
+      if (!u || !p) {
+        document.getElementById('login-error').innerText = 'Username and password required';
+        return;
+      }
+      const form = new URLSearchParams();
+      form.append('username', u);
+      form.append('password', p);
+      try {
+        const res = await fetch(API + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form,
+          credentials: 'include'
+        });
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err);
+        }
+        // After login, verify admin access by calling /auth/users
+        await apiFetch('/auth/users');
+        document.getElementById('login-box').classList.add('hidden');
+        document.getElementById('main-box').classList.remove('hidden');
+        document.getElementById('login-error').innerText = '';
+        loadUsers();
+      } catch (e) {
+        document.getElementById('login-error').innerText = 'Invalid admin credentials or insufficient privileges';
+        console.error(e);
+      }
+    }
+
+    async function registerUser() {
+      const username = document.getElementById('new-username').value.trim();
+      const password = document.getElementById('new-password').value;
+      if (!username || !password) {
+        alert('Username and password are required');
+        return;
+      }
+      if (password.length < 6) {
+        alert('Password must be at least 6 characters');
+        return;
+      }
+      const body = {
+        username,
+        password,
+        full_name: document.getElementById('new-fullname').value.trim() || null,
+        role: document.getElementById('new-role').value
+      };
+      try {
+        await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(body) });
+        document.getElementById('register-msg').className = 'success';
+        document.getElementById('register-msg').innerText = '✅ User created successfully';
+        loadUsers();
+        document.getElementById('new-username').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('new-fullname').value = '';
+      } catch (e) {
+        document.getElementById('register-msg').className = 'error';
+        document.getElementById('register-msg').innerText = e.message || 'Creation failed';
+      }
+    }
+
+    async function loadUsers() {
+      try {
+        const users = await apiFetch('/auth/users');
+        const tbody = document.querySelector('#users-table tbody');
+        tbody.innerHTML = users.map(u => `
+          <tr>
+            <td>${escapeHtml(u.username)}</td>
+            <td>${escapeHtml(u.full_name || '')}</td>
+            <td>${u.role}</td>
+            <td>
+              <button onclick="deleteUser('${u.id}')" style="background:#ef4444; width:auto; padding:0.3rem 0.8rem;">Delete</button>
+              <select onchange="changeRole('${u.id}',this.value)" style="width:auto; padding:0.3rem;">
+                <option ${u.role === 'operator' ? 'selected' : ''}>operator</option>
+                <option ${u.role === 'engineer' ? 'selected' : ''}>engineer</option>
+                <option ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+              </select>
+            </td>
+          </tr>
+        `).join('');
+        document.getElementById('users-table').classList.remove('hidden');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Delete this user permanently?')) return;
+      try {
+        await apiFetch('/auth/users/' + id, { method: 'DELETE' });
+        loadUsers();
+      } catch (e) {
+        alert('Delete failed: ' + e.message);
+      }
+    }
+
+    async function changeRole(id, role) {
+      try {
+        await apiFetch('/auth/users/' + id + '/role?role=' + role, { method: 'PUT' });
+        loadUsers();
+      } catch (e) {
+        alert('Role change failed: ' + e.message);
+      }
+    }
+
+    function logout() {
+      fetch(API + '/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+      document.getElementById('login-box').classList.remove('hidden');
+      document.getElementById('main-box').classList.add('hidden');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+      });
+    }
+
+    // Initial check
+    checkAuth();
+  </script>
+</body>
+</html>
