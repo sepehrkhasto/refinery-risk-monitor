@@ -1,5 +1,5 @@
 """
-Professional Root Cause Analysis (RCA) service with weighted cause analysis,
+Root Cause Analysis (RCA) service with weighted cause analysis,
 trend detection, and ML-based predictive RCA using rich feature set (39 columns).
 Thread-safe and production-ready.
 """
@@ -16,15 +16,11 @@ from enum import Enum
 from collections import defaultdict, Counter
 
 import numpy as np
-import pandas as pd
 import joblib
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from dateutil import parser as date_parser
 
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.preprocessing import RobustScaler, LabelEncoder
-from sklearn.model_selection import cross_val_score
 import xgboost as xgb
 import lightgbm as lgb
 
@@ -32,8 +28,7 @@ warnings.filterwarnings('ignore')
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(PROJECT_ROOT)
-from backend.db.db_models import RiskAssessment, SensorReading, Unit, EnvironmentData, MaintenanceLog, HSEReport
-from backend.db.crud import get_all_features_for_unit, get_unit_risk_history
+from backend.db.db_models import RiskAssessment, Unit, EnvironmentData, MaintenanceLog, HSEReport
 from backend.logger import logger
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'models', 'rca')
@@ -324,7 +319,6 @@ class PredictiveRCA:
             logger.warning(f"No unit for risk assessment {risk_assessment.id}")
             return None
 
-        # Start with sensor reading values
         features = {
             "temp_in": sensor.temperature_in or 0.0,
             "temp_out": sensor.temperature_out or 0.0,
@@ -396,7 +390,6 @@ class PredictiveRCA:
             features["last_incident_days"] = 0
             features["safety_score"] = 0.0
 
-        # Add risk score (for completeness, may not be used as feature)
         features["risk_score"] = risk_assessment.risk_score
         features["timestamp"] = risk_assessment.timestamp.isoformat()
 

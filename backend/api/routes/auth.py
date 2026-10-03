@@ -3,15 +3,15 @@ Authentication endpoints: register, login, logout, and admin user management.
 Uses httpOnly cookie for JWT storage.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
-from backend.api.dependencies import get_db, get_current_user
+from backend.api.dependencies import get_db, get_current_user, get_token_from_request
 from backend.db import crud, schemas
 from backend.auth.auth import (
-    verify_password, create_access_token, get_password_hash,
+    create_access_token, get_password_hash, decode_access_token,
     create_access_token_cookie_response
 )
 from backend.exceptions import UnauthorizedException, ForbiddenException
@@ -20,12 +20,23 @@ router = APIRouter()
 
 
 @router.post("/auth/register", response_model=schemas.UserResponse)
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    """Register a new user."""
+def register(
+    user: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    token: Optional[str] = Depends(get_token_from_request),
+):
+    """Register a new user. Only an authenticated admin may assign a role other than operator."""
     db_user = crud.get_user_by_username(db, user.username)
     if db_user:
         raise HTTPException(status_code=400, detail="Username already exists")
     hashed_pw = get_password_hash(user.password)
+    role = "operator"
+    payload = decode_access_token(token) if token else None
+    if payload:
+        caller = crud.get_user_by_username(db, payload.get("sub"))
+        if caller and caller.is_active and caller.role == "admin":
+            role = user.role
+    user = user.model_copy(update={"role": role})
     new_user = crud.create_user(db, user, hashed_pw)
     return new_user
 
@@ -70,7 +81,6 @@ def login_json(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-# ---------- Admin user management ----------
 @router.get("/auth/users", response_model=List[schemas.UserResponse])
 def list_users(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != "admin":

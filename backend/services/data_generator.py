@@ -1,12 +1,12 @@
 """
-Professional refinery simulator – Enterprise Edition.
+Refinery simulator.
 Includes First-Principles models, causal soft sensor, GAN for fault data generation,
 and risk assessment engine. Modular and extensible design.
 """
 
 import math, random, numpy as np, pandas as pd
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Tuple, Optional, Any
+from datetime import datetime, timezone
+from typing import Dict, Any
 from dataclasses import dataclass
 from collections import deque
 import warnings
@@ -37,7 +37,7 @@ class FirstPrinciplesModel:
 
     def energy_balance(self, T_in: float, flow_rate: float, heat_input: float, ambient_temp: float) -> float:
         m_dot = flow_rate * self.thermo.rho / 3600
-        Q_process = m_dot * self.thermo.cp * T_in
+        m_dot * self.thermo.cp * T_in
         UA = self.specs.get('ua_value', 50)
         Q_loss = UA * (T_in - ambient_temp)
         Q_input = heat_input * 1000
@@ -66,12 +66,11 @@ class FirstPrinciplesModel:
 # ============================================================================
 # Causal Soft Sensor (ML)
 # ============================================================================
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 import xgboost as xgb
 import lightgbm as lgb
 from statsmodels.tsa.stattools import grangercausalitytests
-import shap
 
 
 class CausalSoftSensor:
@@ -100,7 +99,7 @@ class CausalSoftSensor:
                 min_p = min(result[lag][0]['ssr_ftest'][1] for lag in range(1, self.max_lags + 1))
                 if min_p < significance_level:
                     causal.append(col)
-            except:
+            except Exception:
                 continue
         return causal
 
@@ -243,7 +242,7 @@ class RiskAssessmentEngine:
 
 
 # ============================================================================
-# Professional Refinery Simulator (main class)
+# Refinery simulator (main class)
 # ============================================================================
 class ProfessionalRefinerySimulator:
     """Integrated simulator with all capabilities."""

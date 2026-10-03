@@ -113,7 +113,7 @@ LOG_LEVEL=INFO
 # Running the Application
 
 ``` bash
-uvicorn backend.main:app --reload
+uvicorn backend.api.main:app --reload
 ```
 
 API documentation:

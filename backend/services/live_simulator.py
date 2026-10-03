@@ -7,7 +7,7 @@ import threading
 import time
 import random
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -65,7 +65,6 @@ class LiveSimulator:
     def __init__(self, config: Optional[SimulatorConfig] = None):
         if config is None:
             config = SimulatorConfig()
-        # Override interval with global setting if needed
         step_seconds = getattr(settings, "PREDICTION_STEP_SECONDS", 3)
         if config.interval_seconds != step_seconds:
             logger.info(
@@ -124,7 +123,7 @@ class LiveSimulator:
                 for unit in units:
                     try:
                         self._generate_reading(session, unit)
-                        session.commit()   # 🔥 FIXED: commit per unit
+                        session.commit()
                     except Exception as unit_error:
                         session.rollback()
                         logger.error(f"Failed to generate reading for {unit.name}: {unit_error}", exc_info=True)
@@ -279,7 +278,6 @@ class LiveSimulator:
         db.add(risk_assessment)
         db.flush()
 
-        # Update pending prediction logs
         pending = db.query(PredictionLog).filter(
             PredictionLog.unit_id == unit.id,
             PredictionLog.status == "pending"
@@ -298,7 +296,6 @@ class LiveSimulator:
         to avoid deadlocks with the background thread. It does NOT use the
         passed db session for writes (only for reading unit).
         """
-        # First, get the unit using the provided session (read-only)
         unit = db.query(Unit).filter(Unit.name == unit_name).first()
         if not unit:
             logger.warning(f"Cannot inject fault: unit {unit_name} not found")

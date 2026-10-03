@@ -1,16 +1,14 @@
 """
 Main FastAPI entry point with WebSocket support, background tasks,
-and production-grade lifespan management.
+and application lifespan management.
 """
 
-import os
 from contextlib import asynccontextmanager
 import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
-from backend.db.database import engine, Base
 from backend.middleware import LoggingMiddleware
 from backend.exceptions import AppException, app_exception_handler, global_exception_handler
 from backend.api.routes import (
@@ -22,10 +20,7 @@ from backend.services.auto_trainer import get_auto_trainer
 from backend.websocket.manager import periodic_risk_broadcast
 from backend.logger import logger
 
-# ⚠️ DO NOT use Base.metadata.create_all here! Alembic handles migrations.
-# Base.metadata.create_all(bind=engine)  # Commented for production safety
 
-# Singleton services
 live_sim = LiveSimulator()
 auto_trainer = get_auto_trainer()
 
@@ -60,14 +55,7 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
-# Rate limiter is disabled for now (to avoid dependency issues)
-# To enable, install slowapi and uncomment the lines below:
-# from slowapi.errors import RateLimitExceeded
-# from backend.middleware.rate_limiter import limiter, limiter_exceed_handler
-# app.state.limiter = limiter
-# app.add_exception_handler(RateLimitExceeded, limiter_exceed_handler)
 
-# Middlewares
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -77,11 +65,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Exception handlers
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(Exception, global_exception_handler)
 
-# API routers (health first)
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 app.include_router(predictions.router, prefix="/api", tags=["Predictions"])

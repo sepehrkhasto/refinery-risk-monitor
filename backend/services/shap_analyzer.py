@@ -1,5 +1,5 @@
 """
-Professional SHAP analysis service for model interpretability.
+SHAP analysis service for model interpretability.
 Uses the LightGBM P50 quantile model (or a fallback RandomForest) to explain
 which features contribute most to risk predictions.
 Thread-safe and compatible with fixed feature columns.
@@ -9,9 +9,8 @@ import os
 import sys
 import warnings
 import threading
-import json
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 
 import numpy as np
 import joblib
@@ -20,7 +19,6 @@ from sqlalchemy.orm import Session
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import RobustScaler
-import lightgbm as lgb
 
 warnings.filterwarnings('ignore')
 
@@ -32,7 +30,6 @@ from backend.logger import logger
 MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
 QUANTILE_MODEL_DIR = os.path.join(MODEL_DIR, 'quantile')
 
-# Import fixed feature columns from predictor_ml
 try:
     from backend.services.predictor_ml import FIXED_FEATURE_COLUMNS
 except ImportError:
@@ -145,7 +142,6 @@ class SHAPAnalysisService:
                 self._loaders[unit_name] = SHAPModelLoader()
                 self._locks[unit_name] = threading.RLock()
             loader = self._loaders[unit_name]
-            # If model not loaded yet and db is provided, try to load/train
             if loader.get_explainer() is None and db is not None:
                 with self._locks[unit_name]:
                     if loader.get_explainer() is None:
@@ -170,7 +166,6 @@ class SHAPAnalysisService:
                 "recommendations": ["Train the quantile model first or ensure data availability"]
             }
 
-        # Get features if not provided
         if features_dict is None:
             features_dict = get_latest_features_for_unit(db, unit_name)
             if not features_dict:
@@ -180,7 +175,6 @@ class SHAPAnalysisService:
                     "unit_name": unit_name
                 }
 
-        # Build feature vector in fixed order
         feature_names = loader.get_feature_names()
         feature_values = []
         for col in feature_names:
@@ -190,14 +184,12 @@ class SHAPAnalysisService:
             feature_values.append(float(val))
         X = np.array(feature_values).reshape(1, -1)
 
-        # Scale if scaler exists
         scaler = loader.get_scaler()
         if scaler is not None:
             X_scaled = scaler.transform(X)
         else:
             X_scaled = X
 
-        # Get SHAP values
         explainer = loader.get_explainer()
         model = loader.get_model()
         shap_values = explainer.shap_values(X_scaled)
@@ -213,15 +205,12 @@ class SHAPAnalysisService:
         elif len(shap_values.shape) == 1:
             shap_values = shap_values  # already 1D
 
-        # Get base value (expected value)
         base_value = float(explainer.expected_value)
         if isinstance(base_value, (list, np.ndarray)):
             base_value = float(base_value[0])
 
-        # Get model prediction
         predicted_risk = float(model.predict(X_scaled)[0])
 
-        # Sort features by absolute SHAP value
         feature_impacts = []
         for i, name in enumerate(feature_names):
             if i >= len(shap_values):
@@ -236,17 +225,13 @@ class SHAPAnalysisService:
                 "impact_direction": "INCREASES" if shap_val > 0 else "DECREASES",
                 "impact_level": self._impact_level(abs_shap)
             })
-        # Sort by absolute SHAP descending
         feature_impacts.sort(key=lambda x: x['abs_shap'], reverse=True)
 
-        # Top positive and negative
         top_positive = [f for f in feature_impacts if f['shap_value'] > 0][:5]
         top_negative = [f for f in feature_impacts if f['shap_value'] < 0][:5]
 
-        # Generate recommendations
         recommendations = self._generate_recommendations(top_positive, predicted_risk)
 
-        # Generate text visualization (like waterfall summary)
         text_viz = self._generate_text_viz(predicted_risk, base_value, top_positive, top_negative)
 
         return {
@@ -255,7 +240,7 @@ class SHAPAnalysisService:
             "timestamp": datetime.now(timezone.utc).isoformat(), 
             "predicted_risk": round(predicted_risk, 2),
             "base_value": round(base_value, 2),
-            "feature_impacts": feature_impacts[:15],  # top 15 features
+            "feature_impacts": feature_impacts[:15],
             "top_positive_features": top_positive,
             "top_negative_features": top_negative,
             "recommendations": recommendations,

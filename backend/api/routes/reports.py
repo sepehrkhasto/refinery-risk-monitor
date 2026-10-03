@@ -2,11 +2,10 @@
 Operator reporting endpoints.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.api.dependencies import get_db, get_current_user
 from backend.db import crud, schemas
-from backend.db.db_models import Unit, OperatorReport
 
 router = APIRouter()
 

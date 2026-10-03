@@ -21,23 +21,20 @@ import threading
 
 router = APIRouter()
 
-# Simple in-memory cache for latest risk per unit
 _latest_risk_cache: Dict[str, Dict[str, Any]] = {}
 _latest_features_cache: Dict[str, Dict[str, Any]] = {}
 _cache_ttl_seconds = 2  # Cache expires after 2 seconds
-_cache_lock = threading.RLock()  # Protect cache access
+_cache_lock = threading.RLock()
 
 
 def _get_cached_latest_risk(unit_id: str, db: Session) -> Optional[Dict[str, Any]]:
     """Get latest risk from cache or DB (thread-safe)."""
-    global _latest_risk_cache
     now = datetime.now(timezone.utc)
     with _cache_lock:
         if unit_id in _latest_risk_cache:
             cached = _latest_risk_cache[unit_id]
             if (now - cached["timestamp"]).total_seconds() < _cache_ttl_seconds:
                 return cached["data"]
-        # Cache miss or expired
         latest = db.query(RiskAssessment).filter(
             RiskAssessment.unit_id == unit_id
         ).order_by(desc(RiskAssessment.timestamp)).first()
@@ -55,7 +52,6 @@ def _get_cached_latest_risk(unit_id: str, db: Session) -> Optional[Dict[str, Any
 
 def _get_cached_latest_features(unit_name: str, db: Session) -> Optional[Dict[str, float]]:
     """Get latest features from cache or DB (thread-safe)."""
-    global _latest_features_cache
     now = datetime.now(timezone.utc)
     with _cache_lock:
         if unit_name in _latest_features_cache:

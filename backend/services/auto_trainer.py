@@ -4,11 +4,9 @@ on a schedule. Thread-safe and production-ready with graceful shutdown.
 """
 
 import threading
-import time
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy.orm import Session
 
 from backend.db.database import SessionLocal
 from backend.db.db_models import Unit
@@ -80,7 +78,6 @@ class AutoTrainer:
         logger.info("Starting automatic retraining of all models")
         db = SessionLocal()
         try:
-            # 1. Retrain ensemble (global + per-unit)
             if self._stop_event.is_set():
                 return
             logger.info("Retraining ensemble models...")
@@ -91,7 +88,6 @@ class AutoTrainer:
                     return
                 train_and_save_professional(db, unit.name)
 
-            # 2. Retrain quantile models
             if self._stop_event.is_set():
                 return
             logger.info("Retraining quantile models...")
@@ -104,7 +100,6 @@ class AutoTrainer:
                 except Exception as e:
                     logger.error(f"Quantile retrain failed for {unit.name}: {e}")
 
-            # 3. Retrain anomaly detectors
             if self._stop_event.is_set():
                 return
             logger.info("Retraining anomaly detection models...")
@@ -117,7 +112,6 @@ class AutoTrainer:
                 except Exception as e:
                     logger.error(f"Anomaly retrain failed for {unit.name}: {e}")
 
-            # 4. Retrain predictive RCA
             if self._stop_event.is_set():
                 return
             logger.info("Retraining predictive RCA models...")

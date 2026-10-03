@@ -2,7 +2,7 @@
 Dashboard management endpoints.
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from backend.api.dependencies import get_db, get_current_user
 from backend.db import crud

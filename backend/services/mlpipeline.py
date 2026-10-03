@@ -1,5 +1,5 @@
 """
-Professional ML pipeline for training stacking ensemble risk prediction model.
+ML pipeline for training stacking ensemble risk prediction model.
 Uses fixed 39 feature columns, time series cross-validation, and saves models
 in a versioned registry. Compatible with quantile, anomaly, and RCA services.
 """
@@ -7,13 +7,11 @@ in a versioned registry. Compatible with quantile, anomaly, and RCA services.
 import os
 import sys
 import json
-import pickle
 import warnings
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple, Optional, Any
 
 import numpy as np
-import pandas as pd
 import joblib
 from sqlalchemy.orm import Session
 
@@ -31,7 +29,7 @@ warnings.filterwarnings('ignore')
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(PROJECT_ROOT)
 from backend.db.database import SessionLocal
-from backend.db.crud import get_all_features_for_unit, get_unit_risk_history, get_aligned_features_and_risk
+from backend.db.crud import get_aligned_features_and_risk
 from backend.db.db_models import Unit
 from backend.logger import logger
 
@@ -86,7 +84,7 @@ class FeatureBuilder:
             vec = [features_list[i].get(col, 0.0) for col in FIXED_FEATURE_COLUMNS]
             vec = [0.0 if (v is None or np.isnan(v) or np.isinf(v)) else float(v) for v in vec]
             X.append(vec)
-            y.append(float(risk_scores[i]))  # ← risk_scores[i]
+            y.append(float(risk_scores[i]))
 
         X = np.array(X, dtype=np.float32)
         y = np.array(y, dtype=np.float32)
@@ -138,36 +136,30 @@ class StackingEnsemble:
         if X.shape[0] < 30:
             raise ValueError(f"Not enough samples for ensemble: {X.shape[0]}")
         
-        # Scale features
         X_scaled = self.scaler.fit_transform(X)
         
-        # Initialize base models
         self.base_models = self._init_base_models()
         
         if self.use_cv and X.shape[0] > self.n_folds * 10:
-            # Generate meta-features using TimeSeriesSplit
             tscv = TimeSeriesSplit(n_splits=self.n_folds)
             meta_features = np.zeros((X.shape[0], len(self.base_models)))
             
             for fold, (train_idx, val_idx) in enumerate(tscv.split(X_scaled)):
                 X_train, X_val = X_scaled[train_idx], X_scaled[val_idx]
-                y_train, y_val = y[train_idx], y[val_idx]
+                y_train = y[train_idx]
                 
                 for i, (name, model) in enumerate(self.base_models.items()):
-                    # Clone model
                     model_clone = type(model)(**model.get_params())
                     model_clone.fit(X_train, y_train)
                     meta_features[val_idx, i] = model_clone.predict(X_val)
             
-            # Train meta-learner
             self.meta_model = Ridge(alpha=0.5)
             self.meta_model.fit(meta_features, y)
             
-            # Retrain base models on full data
             for name, model in self.base_models.items():
                 model.fit(X_scaled, y)
         else:
-            # No CV: train base models directly, use simple average as meta
+            # Without CV: base models are trained directly and averaged
             for name, model in self.base_models.items():
                 model.fit(X_scaled, y)
             self.meta_model = None
@@ -182,7 +174,6 @@ class StackingEnsemble:
         
         X_scaled = self.scaler.transform(X)
         
-        # Get predictions from base models
         base_preds = []
         for model in self.base_models.values():
             base_preds.append(model.predict(X_scaled))
@@ -227,24 +218,20 @@ def train_and_save_professional(db: Session, unit_name: Optional[str] = None) ->
     try:
         logger.info(f"Starting ensemble training for {unit_name or 'all units'}")
         
-        # Build features
         X, y, feature_names = FeatureBuilder.build_features(db, unit_name=unit_name, limit=3000)
         if X.shape[0] < 50:
             logger.warning(f"Not enough data: {X.shape[0]} samples")
             return False
         
-        # Train ensemble
         ensemble = StackingEnsemble(use_cv=True, n_folds=5)
         ensemble.fit(X, y)
         
-        # Evaluate
         predictions = ensemble.predict(X)
         mae = mean_absolute_error(y, predictions)
         rmse = np.sqrt(mean_squared_error(y, predictions))
         r2 = r2_score(y, predictions)
         logger.info(f"Ensemble performance: MAE={mae:.3f}, RMSE={rmse:.3f}, R2={r2:.3f}")
         
-        # Save model
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if unit_name:
             safe_name = unit_name.replace(' ', '_')
@@ -264,7 +251,6 @@ def train_and_save_professional(db: Session, unit_name: Optional[str] = None) ->
         }
         ensemble.save(save_dir, metadata)
         
-        # Also save as 'latest'
         latest_dir = os.path.dirname(save_dir)
         ensemble.save(latest_dir, metadata)
         joblib.dump(feature_names, os.path.join(latest_dir, 'feature_names.pkl'))
@@ -294,14 +280,11 @@ def load_latest_ensemble(unit_name: Optional[str] = None) -> Optional[StackingEn
 
 
 # ============================================================================
-# Main execution
 # ============================================================================
 if __name__ == "__main__":
     db = SessionLocal()
     try:
-        # Train global model
         train_and_save_professional(db)
-        # Train per-unit models
         units = db.query(Unit).all()
         for unit in units:
             train_and_save_professional(db, unit.name)

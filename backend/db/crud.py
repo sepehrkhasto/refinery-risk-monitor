@@ -1,7 +1,7 @@
 """
 Database CRUD operations with optimized queries, support for PostgreSQL and SQLite,
 OHLC, sensor health, feature engineering, and thread-safe session handling.
-All functions include type hints, error handling, and production-grade logging.
+All functions include type hints, error handling, and logging.
 """
 
 import logging
@@ -10,17 +10,15 @@ from typing import List, Optional, Dict, Any, Tuple
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import desc, func, and_, text, case, select
+from sqlalchemy import desc, func, case
 from sqlalchemy.orm import Session, joinedload
-from dateutil import parser as date_parser
 
-from backend.db import db_models
 from backend.db.db_models import (
     Unit, SensorReading, EnvironmentData, MaintenanceLog, HSEReport,
     RiskAssessment, User, OperatorReport, SensorHealth, PredictionLog
 )
 from backend.db import schemas
-from backend.auth.auth import get_password_hash, verify_password
+from backend.auth.auth import verify_password
 
 logger = logging.getLogger("refinery")
 
@@ -258,7 +256,6 @@ def get_sensor_health(db: Session) -> Dict[str, Any]:
     Sensor health percentage based on latest SensorHealth records.
     If no health records exist, estimates from sensor readings.
     """
-    # First try to get actual SensorHealth data
     total_health = db.query(func.count(SensorHealth.id)).scalar()
     if total_health and total_health > 0:
         healthy_health = db.query(func.count(SensorHealth.id)).filter(
@@ -270,7 +267,6 @@ def get_sensor_health(db: Session) -> Dict[str, Any]:
             "mode": "actual"
         }
 
-    # Fallback: estimate from latest sensor readings per unit
     units = db.query(Unit).all()
     if not units:
         return {
@@ -287,7 +283,7 @@ def get_sensor_health(db: Session) -> Dict[str, Any]:
         ).order_by(desc(SensorReading.timestamp)).first()
         if latest_reading:
             total_sensors += 1
-            # More realistic thresholds: warning if vibration > 1.5 or temperature_out > 200
+            # Warning if vibration > 1.5 or temperature_out > 200
             # Healthy if below these thresholds
             is_unhealthy = (latest_reading.vibration and latest_reading.vibration > 1.5) or \
                            (latest_reading.temperature_out and latest_reading.temperature_out > 200)
@@ -435,7 +431,6 @@ def get_all_features_for_unit(
             row["last_incident_days"] = 0
             row["safety_score"] = 0.0
         row["risk_score"] = ra.risk_score
-        # Safe timestamp parsing
         try:
             row["timestamp"] = ra.timestamp.isoformat()
         except Exception:

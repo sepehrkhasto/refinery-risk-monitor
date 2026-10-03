@@ -4,6 +4,7 @@ Supports both Authorization header and httpOnly cookie for token delivery.
 """
 
 import hashlib
+import hmac
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -24,7 +25,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         salt, original_hash = hashed_password.split('$', 1)
         new_hash = hashlib.sha256((salt + plain_password).encode()).hexdigest()
-        return new_hash == original_hash
+        return hmac.compare_digest(new_hash, original_hash)
     except (ValueError, AttributeError):
         return False
 
@@ -59,7 +60,7 @@ def create_access_token_cookie_response(data: dict, expires_delta: Optional[time
         key="access_token",
         value=token,
         httponly=True,
-        secure=settings.ENVIRONMENT == "production",  # Only secure in production
+        secure=settings.ENVIRONMENT == "production",
         samesite="lax",
         expires=int(expires.timestamp())
     )

@@ -1,5 +1,5 @@
 """
-Professional quantile prediction service (P10, P50, P90) with adaptive drift learning,
+Quantile prediction service (P10, P50, P90) with adaptive drift learning,
 safety net using weighted blending, and thread-safe model storage.
 NO on-the-fly training in predict() – models must be pre-trained.
 """
@@ -85,7 +85,6 @@ class AdaptiveDriftLearner:
             return
         recent = risk_history[-10:]
         x = np.arange(len(recent))
-        # Use Theil-Sen for robustness against outliers
         from scipy import stats
         slope = stats.theilslopes(recent, x)[0] if len(recent) >= 4 else 0.0
         self.learned_drift = (self.smoothing_factor * slope +
@@ -273,7 +272,7 @@ class QuantilePredictionService:
             X_list = []
 
             for i, current_feats in enumerate(features_list):
-                hist = risk_scores[:i + 1]  # risk scores 
+                hist = risk_scores[:i + 1]
                 sensor_hist = features_list[:i + 1] 
                 feat_vec = engineer.create_features(current_feats, hist, sensor_hist)
                 X_list.append(feat_vec)

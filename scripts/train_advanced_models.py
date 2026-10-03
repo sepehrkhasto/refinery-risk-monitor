@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Advanced model training script – Enterprise Edition.
+Model training script.
 - Generates sample data if database is empty (8 units, 500 records per unit)
 - Trains per-unit quantile models (P10/P50/P90)
 - Trains per-unit anomaly detection models
@@ -11,7 +11,7 @@ Advanced model training script – Enterprise Edition.
 import sys
 import os
 import time
-from typing import List, Optional
+from typing import List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -54,7 +54,7 @@ def generate_sample_data_if_empty(db: Session) -> bool:
 
     total_records = 0
     for name, capacity, max_temp, max_pressure in UNITS:
-        # ✅ Check if unit already exists (to avoid IntegrityError)
+        # Skip if the unit already exists (avoids IntegrityError)
         unit = db.query(Unit).filter(Unit.name == name).first()
         if unit is None:
             unit = Unit(

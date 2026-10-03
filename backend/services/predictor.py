@@ -1,6 +1,6 @@
 """
 Risk prediction service - Unified interface for risk forecasting.
-Uses the professional quantile predictor (predictor_ml) as primary engine,
+Uses the quantile predictor (predictor_ml) as primary engine,
 with legacy LSTM and simple ensemble fallbacks for backward compatibility.
 All methods are thread-safe and use the fixed 39-feature column set.
 
@@ -8,14 +8,13 @@ This module respects PREDICTION_STEP_SECONDS from config for time interpretation
 (in the returned metadata, not affecting ML model internal logic).
 """
 
-import warnings
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 import numpy as np
 from sqlalchemy.orm import Session
 
-from backend.db.crud import get_unit_risk_history, get_latest_features_for_unit
+from backend.db.crud import get_unit_risk_history
 from backend.services.predictor_ml import (
     predict_risk_quantile_professional as _quantile_predict,
     QuantilePredictionService
@@ -40,7 +39,7 @@ class RiskPredictionReport:
     ensemble_prediction: Optional[float]
     lstm_prediction: Optional[float]
     recommendations: List[str]
-    step_seconds: int  # Time duration per prediction step (from config)
+    step_seconds: int
 
 
 class RiskPredictionService:
@@ -75,7 +74,7 @@ class RiskPredictionService:
         steps: int = 6
     ) -> RiskPredictionReport:
         """
-        Generate a comprehensive prediction report including quantiles
+        Generate a prediction report including quantiles
         and (optionally) legacy ensemble/LSTM predictions for comparison.
         """
         quantile_result = _quantile_predict(db, unit_name, steps=steps)
@@ -105,7 +104,6 @@ class RiskPredictionService:
         else:
             p10 = p50 = p90 = quantile_result.get("current_risk", 50.0)
 
-        # Optionally compute legacy predictions
         ensemble_pred = None
         lstm_pred = None
         if self.use_legacy_fallback:
@@ -191,5 +189,5 @@ def get_risk_prediction_report(
         "ensemble_prediction": report.ensemble_prediction,
         "lstm_prediction": report.lstm_prediction,
         "recommendations": report.recommendations,
-        "step_seconds": report.step_seconds   # New field for frontend
+        "step_seconds": report.step_seconds
     }

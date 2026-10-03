@@ -2,7 +2,7 @@
 WebSocket endpoint for real-time risk data with JWT authentication.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from backend.websocket.manager import manager
 from backend.api.dependencies import get_current_user_ws
 from backend.logger import logger
@@ -20,7 +20,6 @@ async def websocket_endpoint(
     Use unit_name = "all" to receive updates for all units.
     Authentication required via token query parameter.
     """
-    # Authenticate user first
     try:
         user = await get_current_user_ws(websocket)
     except Exception as e:
@@ -30,14 +29,12 @@ async def websocket_endpoint(
 
     await manager.connect(websocket, unit_name)
     try:
-        # Send initial confirmation with user info
         await websocket.send_json({
             "type": "connected",
             "unit_name": unit_name,
             "user": user.username,
             "message": "Connected to risk monitor"
         })
-        # Keep connection alive
         while True:
             data = await websocket.receive_text()
             if data == "ping":

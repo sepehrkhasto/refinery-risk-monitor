@@ -1,19 +1,16 @@
 """
-Professional association rule mining service (FP-Growth).
+Association rule mining service (FP-Growth).
 Extracts cause-effect rules from historical risk assessments.
 Thread-safe and production-ready.
 """
 
 import os
 import sys
-import json
 import warnings
-import numpy as np
-import pandas as pd
-from datetime import datetime, timedelta , timezone
-from typing import Dict, List, Tuple, Optional, Set, Any
-from dataclasses import dataclass, field
-from collections import defaultdict, Counter
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+from collections import Counter
 from itertools import combinations
 
 from sqlalchemy.orm import Session

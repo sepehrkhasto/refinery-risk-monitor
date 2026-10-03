@@ -5,10 +5,9 @@ Heartbeat tasks are properly cancelled on disconnect.
 """
 
 import asyncio
-from typing import Dict, Set, Optional
+from typing import Dict, Set
 
 from fastapi import WebSocket
-from sqlalchemy.orm import Session
 
 from backend.db.database import SessionLocal
 from backend.db.crud import RiskAssessmentRepo
@@ -24,7 +23,7 @@ class ConnectionManager:
 
     def __init__(self):
         self.active_connections: Dict[str, Set[WebSocket]] = {}
-        self._lock = asyncio.Lock()  # Single lock for all async operations
+        self._lock = asyncio.Lock()
         self._heartbeat_interval = 30  # seconds
         self._heartbeat_tasks: Dict[WebSocket, asyncio.Task] = {}
 

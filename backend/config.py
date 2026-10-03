@@ -12,10 +12,7 @@ class Settings(BaseSettings):
     MODEL_DIR: str = "backend/models"
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "development"
-    SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "development-secret-key"
-    )
+    SECRET_KEY: str = "development-secret-key"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     CORS_ORIGINS: str = "*"
@@ -27,7 +24,7 @@ class Settings(BaseSettings):
 
     def validate_production_secrets(self) -> None:
         if self.ENVIRONMENT == "production":
-            if self.SECRET_KEY == "change-me-in-production":
+            if self.SECRET_KEY in ("development-secret-key", "change_me", "change-me-in-production"):
                 raise ValueError("SECRET_KEY must be set in production")
             if self.CORS_ORIGINS == "*":
                 raise ValueError("CORS_ORIGINS must be restricted in production")

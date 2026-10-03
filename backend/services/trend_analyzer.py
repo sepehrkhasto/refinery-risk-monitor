@@ -1,5 +1,5 @@
 """
-Professional trend analysis service – Enterprise Edition.
+Trend analysis service.
 Includes Mann-Kendall, seasonality detection, change point detection, and Holt-Winters forecasting.
 Forces all outputs to standard Python types (no NumPy).
 Caches expensive bootstrap computations per (data_hash, confidence_level).
@@ -7,9 +7,7 @@ Caches expensive bootstrap computations per (data_hash, confidence_level).
 
 import os, sys
 import numpy as np
-import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 import warnings
 from functools import lru_cache
@@ -24,7 +22,6 @@ warnings.filterwarnings('ignore')
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.append(PROJECT_ROOT)
 from backend.db.crud import get_unit_risk_history, get_all_features_for_unit
-from backend.logger import logger
 
 
 def _safe_value(x):
@@ -176,7 +173,7 @@ class SeasonalityDetector:
 
     def detect(self, data: np.ndarray, freq_hint=None) -> SeasonalityResult:
         n = len(data)
-        # FIXED: Always return a valid SeasonalityResult, never None
+        # Always returns a valid SeasonalityResult, never None
         if n < 10:
             return SeasonalityResult(False, [], [], False)
         autocorr = self._autocorrelation(data)
@@ -205,7 +202,7 @@ class SeasonalityDetector:
                 seasonal_comp = decomp.seasonal.values
                 resid_comp = decomp.resid.values
                 decomposition_available = True
-            except:
+            except Exception:
                 pass
         has_seasonality = len(periods) > 0 and max(strengths) > 0.25
         return SeasonalityResult(bool(has_seasonality), periods, strengths, decomposition_available,
@@ -279,7 +276,7 @@ class TrendForecaster:
                 steps, 'holtwinters',
                 {'aic': float(fitted.aic), 'bic': float(fitted.bic)}
             )
-        except:
+        except Exception:
             return ForecastResult([float(data[-1])] * steps,
                                   [float(data[-1] - 5)] * steps,
                                   [float(data[-1] + 5)] * steps,

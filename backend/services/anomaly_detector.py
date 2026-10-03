@@ -1,27 +1,25 @@
 """
-Professional anomaly detection service using ensemble of multiple algorithms.
+Anomaly detection service using ensemble of multiple algorithms.
 Supports per-unit model storage, rich feature set (39+ columns), and thread-safe
 training/prediction. Outputs include normalized anomaly score and severity level.
 """
 
 import os
 import sys
-import pickle
 import warnings
 import threading
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
 import joblib
 from sqlalchemy.orm import Session
 
 from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 from sklearn.neighbors import LocalOutlierFactor
-from sklearn.preprocessing import RobustScaler, MinMaxScaler
+from sklearn.preprocessing import RobustScaler
 from sklearn.covariance import EllipticEnvelope
 from sklearn.base import BaseEstimator, OutlierMixin
 
@@ -66,7 +64,6 @@ class EnsembleAnomalyDetector(BaseEstimator, OutlierMixin):
         self.weights: Dict[str, float] = {}
         self.thresholds: Dict[str, float] = {}
         self._fitted = False
-        # Store normalization parameters per model (min, max)
         self._norm_params: Dict[str, Tuple[float, float]] = {}
 
     def _init_model(self, name: str) -> Optional[Any]:
@@ -122,7 +119,6 @@ class EnsembleAnomalyDetector(BaseEstimator, OutlierMixin):
         n_models = len(self.models)
         self.weights = {name: 1.0 / n_models for name in self.models}
 
-        # Store normalization parameters based on training data scores
         for name, model in self.models.items():
             try:
                 if hasattr(model, 'score_samples'):
@@ -160,7 +156,6 @@ class EnsembleAnomalyDetector(BaseEstimator, OutlierMixin):
                 else:
                     scores = -model.predict(X)
 
-                # Normalize using stored min/max from training
                 min_s, max_s = self._norm_params[name]
                 if max_s - min_s > 1e-8:
                     scores_norm = (scores - min_s) / (max_s - min_s)
