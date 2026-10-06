@@ -4,7 +4,7 @@ on a schedule. Thread-safe and production-ready with graceful shutdown.
 """
 
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 
@@ -55,7 +55,7 @@ class AutoTrainer:
             now = datetime.now(timezone.utc)
             target = now.replace(hour=self.train_hour, minute=self.train_minute, second=0, microsecond=0)
             if target <= now:
-                target += now.replace(days=1)
+                target += timedelta(days=1)
 
             seconds_until_target = (target - now).total_seconds()
             if seconds_until_target > 0:
